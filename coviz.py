@@ -14,6 +14,12 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from datetime import date, timedelta
 
+import sys
+
+import pydeck as pdk
+
+import plotly.graph_objects as go
+
 DATA_WORLD_CONFIRMED_GLOBAL = 'time_series_covid19_confirmed_global.csv'
 DATA_WORLD_DEATHS_GLOBAL = 'time_series_covid19_deaths_global.csv'
 DATA_WORLD_RECOVERED_GLOBAL = 'time_series_covid19_recovered_global.csv'
@@ -23,6 +29,28 @@ DATA_US_DEATHS_GLOBAL = 'time_series_covid19_deaths_US.csv'
 
 # Lesotho, Saint Helena, comoros not in dataset : removed from list below
 AFRICAN_COUNTRIES =  ["Nigeria","Ethiopia","Egypt","Congo (Brazzaville)","South Africa","Tanzania","Kenya","Uganda","Algeria","Sudan","Morocco","Angola","Ghana","Mozambique","Madagascar","Cameroon","Cote d'Ivoire","Niger","Burkina Faso","Mali","Malawi","Zambia","Senegal","Chad","Somalia","Zimbabwe","Guinea","Rwanda","Benin","Tunisia","Burundi","South Sudan","Togo","Sierra Leone","Libya","Congo (Kinshasa)","Liberia","Central African Republic","Mauritania","Eritrea","Namibia","Gambia","Botswana","Gabon","Guinea-Bissau","Equatorial Guinea","Mauritius","Eswatini","Djibouti","Western Sahara","Cabo Verde","Sao Tome and Principe","Seychelles"]
+
+US_state_codes_dict = {'American Samoa' : 'AS', 'Guam': 'GU', 'Northern Mariana Islands' : 'MP',
+    'Puerto Rico': 'PR', 'Virgin Islands': 'VI',
+    'District of Columbia' : 'DC','Mississippi': 'MS', 'Oklahoma': 'OK', 
+    'Delaware': 'DE', 'Minnesota': 'MN', 'Illinois': 'IL', 'Arkansas': 'AR', 
+    'New Mexico': 'NM', 'Indiana': 'IN', 'Maryland': 'MD', 'Louisiana': 'LA', 
+    'Idaho': 'ID', 'Wyoming': 'WY', 'Tennessee': 'TN', 'Arizona': 'AZ', 
+    'Iowa': 'IA', 'Michigan': 'MI', 'Kansas': 'KS', 'Utah': 'UT', 
+    'Virginia': 'VA', 'Oregon': 'OR', 'Connecticut': 'CT', 'Montana': 'MT', 
+    'California': 'CA', 'Massachusetts': 'MA', 'West Virginia': 'WV', 
+    'South Carolina': 'SC', 'New Hampshire': 'NH', 'Wisconsin': 'WI',
+    'Vermont': 'VT', 'Georgia': 'GA', 'North Dakota': 'ND', 
+    'Pennsylvania': 'PA', 'Florida': 'FL', 'Alaska': 'AK', 'Kentucky': 'KY', 
+    'Hawaii': 'HI', 'Nebraska': 'NE', 'Missouri': 'MO', 'Ohio': 'OH', 
+    'Alabama': 'AL', 'Rhode Island': 'RI', 'South Dakota': 'SD', 
+    'Colorado': 'CO', 'New Jersey': 'NJ', 'Washington': 'WA', 
+    'North Carolina': 'NC', 'New York': 'NY', 'Texas': 'TX', 
+    'Nevada': 'NV', 'Maine': 'ME',
+    'Diamond Princess' : 'NotUS',
+    'Grand Princess' : 'NotUS',
+    }
+
 
 def _max_width_():
     max_width_str = f"max-width: 2000px;"
@@ -40,7 +68,7 @@ def _max_width_():
 #_max_width_()
 
 @st.cache()
-def load_data():
+def load_data(date_colname):
     print('Cache update')
     
     import gc
@@ -56,23 +84,24 @@ def load_data():
     
     return(df_world_confirmed, df_world_deaths, df_world_recovered, df_us_confirmed, df_us_deaths)
 
-st.title('Coronavirus countries comparison') 
-
-df_world_confirmed, df_world_deaths, df_world_recovered, df_us_confirmed, df_us_deaths = load_data()
+st.title('Covid19 countries comparison') 
 
 #st.write(df_world_confirmed.columns)
 
 yesterday = date.today() - timedelta(days=1)
 yesterday_colname = yesterday.strftime('%m/%d/%y').lstrip('0').replace("/0", "/")
 
+df_world_confirmed, df_world_deaths, df_world_recovered, df_us_confirmed, df_us_deaths = load_data(yesterday_colname)
+
 cnt = 0
-while (yesterday_colname not in df_world_deaths.columns.tolist()):
-    yesterday = date.today() - timedelta(days=2)
+while ((yesterday_colname not in df_world_deaths.columns.tolist()) and (cnt < 10)):
+    yesterday = date.today() - timedelta(days=cnt+2)
     yesterday_colname = yesterday.strftime('%m/%d/%y').lstrip('0').replace("/0", "/")
     cnt += 1
     
-    if (cnt > 10):
-        st.error('Could not find data')
+    if (cnt >= 10):
+        #st.error('Could not find data')
+        sys.exit('Could not find data')
 
 
 #st.table(df_world_deaths)
@@ -150,6 +179,7 @@ if (countries_todisplay == 'Africa') or (countries_todisplay == 'ALL'):
     graph_title = f"COVID19 : Number of deaths / (Number of deaths + recovered) (updated {yesterday_colname})"
     x_label_custom = "Number of deaths + recovered since start of crisis"
     y_label_custom = 'Number of deaths' + log_scale_legend
+    y_label = 'Number of deaths'
 
 elif (countries_todisplay == 'US'):
     max_confirmed_cases = st.slider('Max number of confirmed cases to display (decrease to see small data on the left)', min_value=0,\
@@ -179,6 +209,7 @@ elif (countries_todisplay == 'US'):
     graph_title = f"COVID19 US : Number of deaths / Confirmed cases (updated {yesterday_colname})"
     x_label_custom = "Number of confirmed cases since start of crisis"
     y_label_custom = 'Number of deaths' + log_scale_legend
+    y_label = 'Number of deaths'
 
 ################### Graph ###################################################
 
@@ -219,10 +250,57 @@ ax.annotate('François BOYER\nSource : John Hopkins University', xy=(1, 0), xyte
 #plt.savefig('covid19-world-regplot-'+str(1)+'.png')
 st.pyplot()
 
-
 #############################################################################
 
 st.write('NB : UK data is inaccurate because some "recovered" data is missing')
+
+
+##### Display data and maps ##################################################
+
+death_ratio = Y_data / X_data
+
+df_map = pd.DataFrame(
+    df_world_deaths[['4/25/20', 'Lat', 'Long']],
+    columns=['4/25/20', 'Lat', 'Long'])
+
+df_map.columns = ['4/25/20', 'lat', 'lon']
+
+if (countries_todisplay == 'US'):
+    locationmode_to_use = 'USA-states'
+    z_data = (Y_data / X_data).fillna(0).astype(float)
+    locations_to_use = [US_state_codes_dict[k] for k in Y_data.index.values]
+    
+else:
+    locationmode_to_use = 'country names'
+    z_data = (Y_data / X_data).fillna(0).astype(float)
+    locations_to_use = Y_data.index.values
+  
+data = [dict(type = 'choropleth',
+        colorscale = 'Reds',
+        locations=locations_to_use, # 2 letters state code names
+        z = z_data, # Data to be color-coded
+        text = Y_data.index.values,
+        locationmode = locationmode_to_use, # set of locations match entries in `locations
+        colorbar = {'title':"Death ratio"},
+       )]
+
+layout = dict(title = f'{x_label_custom} / {y_label}',
+              geo = dict(scope='world', showlakes = True)) #  if scope = 'usa', limit map scope to USA)
+
+choromap = go.Figure(data = data, layout=layout)
+    
+st.write(choromap)
+
+display_data = st.checkbox('Display numerical data', value=True)
+
+if (display_data == True):
+    df_data_to_display = pd.concat([X_data, Y_data, death_ratio], axis=1)
+    df_data_to_display.columns = [x_label_custom, y_label, 'Death ratio']
+    
+    st.dataframe(df_data_to_display)
+    
+    
+
 st.write('François BOYER')
 st.write('Dataset : https://github.com/CSSEGISandData/COVID-19/tree/master/csse_covid_19_data/csse_covid_19_time_series')
 
