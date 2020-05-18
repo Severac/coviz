@@ -9,6 +9,8 @@ sudo a2enmod proxy && sudo a2enmod proxy_http
 sudo a2enmod rewrite
 sudo a2enmod proxy_wstunnel
 
+sudo a2enmod ssl
+
 sudo service apache2 restart
 
 Pour logger l'url:  ajout de %V dans le LogFormat du /etc/apache2/apache2.conf
@@ -25,7 +27,64 @@ CONFIGURATION 2 : SANS CHANGEMENT DE L'URL COTE CLIENT (dans sa barre d'adresse,
    RewriteCond %{HTTP:Upgrade} !=websocket
    RewriteRule /(.*) http://localhost:8502/$1 [P]
    ProxyPassReverse / http://localhost:8502
+
+   ErrorLog ${APACHE_LOG_DIR}/error.log
+   CustomLog ${APACHE_LOG_DIR}/access.log combined
 </VirtualHost>
+
+
+CONFIGURATION 3 : même chose mais avec SSL (ne pas oublier d'ouvrir le port 443 sur la console AWS)
+
+<VirtualHost *:80>
+    RewriteEngine on
+    RewriteCond %{SERVER_NAME} =covid19.analysons.com
+    RewriteRule ^ https://%{SERVER_NAME}%{REQUEST_URI} [END,NE,R=permanent]
+</VirtualHost>
+
+<VirtualHost *:443>
+   ServerName covid19.analysons.com
+
+   RewriteEngine On
+   RewriteCond %{HTTP:Upgrade} =websocket
+   RewriteRule /(.*) ws://localhost:8502/$1 [P]
+   RewriteCond %{HTTP:Upgrade} !=websocket
+   RewriteRule /(.*) http://localhost:8502/$1 [P]
+   ProxyPassReverse / http://localhost:8502
+  
+   SSLEngine On
+   SSLCertificateFile /etc/letsencrypt/live/covid19.analysons.com/fullchain.pem
+   SSLCertificateKeyFile /etc/letsencrypt/live/covid19.analysons.com/privkey.pem
+
+   ErrorLog ${APACHE_LOG_DIR}/error.log
+   CustomLog ${APACHE_LOG_DIR}/access.log combined
+</VirtualHost>
+
+Les certificats ont été générés avec Let's Encrypt (gratuit) : voir CertBot.
+Avec cette commande : sudo certbot certonly --apache
+
+
+Certificats https :
+IMPORTANT NOTES:
+ - Congratulations! Your certificate and chain have been saved at:
+   /etc/letsencrypt/live/covid19.analysons.com/fullchain.pem
+   Your key file has been saved at:
+   /etc/letsencrypt/live/covid19.analysons.com/privkey.pem
+   Your cert will expire on 2020-08-16. To obtain a new or tweaked
+   version of this certificate in the future, simply run certbot
+   again. To non-interactively renew *all* of your certificates, run
+   "certbot renew"
+ - Your account credentials have been saved in your Certbot
+   configuration directory at /etc/letsencrypt. You should make a
+   secure backup of this folder now. This configuration directory will
+   also contain certificates and private keys obtained by Certbot so
+   making regular backups of this folder is ideal.
+ - If you like Certbot, please consider supporting our work by:
+
+   Donating to ISRG / Let's Encrypt:   https://letsencrypt.org/donate
+   Donating to EFF:                    https://eff.org/donate-le
+
+
+
 
 Lancer streamlit avec paramètres :
 streamlit run coviz.py --server.port=8502 --browser.serverPort='8502' --browser.serverAddress='covid19.analysons.com'

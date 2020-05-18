@@ -114,11 +114,10 @@ data_recovered = df_world_recovered[['Country/Region', yesterday_colname]].group
 data_closed_cases = data_deaths + data_recovered
 data_countries = df_world_deaths[['Country/Region', yesterday_colname]].groupby('Country/Region').sum().sort_values(by='Country/Region')
 
-
 data_us_deaths = df_us_deaths[['Province_State', yesterday_colname]].groupby('Province_State').sum().sort_values(by='Province_State')[yesterday_colname]
 data_us_confirmed = df_us_confirmed[['Province_State', yesterday_colname]].groupby('Province_State').sum().sort_values(by='Province_State')[yesterday_colname]
 data_us_countries = df_us_deaths[['Province_State', yesterday_colname]].groupby('Province_State').sum().sort_values(by='Province_State')
-
+data_us_pop = df_us_deaths[['Province_State', 'Population']].groupby('Province_State').sum().sort_values(by='Province_State')['Population']
 
 
 countries_todisplay = st.selectbox('Countries to display', ['ALL', 'Africa', 'US'])
@@ -200,6 +199,7 @@ elif (countries_todisplay == 'US'):
     data_us_confirmed_filtered = data_us_confirmed.loc[filtered_indexes]
     
     data_us_countries_filtered = data_us_countries.loc[filtered_indexes]    
+    data_us_pop_filtered = data_us_pop.loc[filtered_indexes]    
     
     ## Input data for the graph :
     X_data = data_us_confirmed_filtered
@@ -233,6 +233,10 @@ closedcasescount_80p = X_data.sum() * 0.80
 min_value_80p = X_data.loc[X_data[X_data.sort_values(ascending=False).cumsum() <= closedcasescount_80p].index].min()
 
 ax.set(xlabel=x_label_custom, ylabel=y_label_custom)
+
+#ax.set_xlim(0, 5000)
+#ax.set_ylim(0, 300)
+
 plt.axvline(min_value_80p, color='green', linestyle='--', label=f"80% of deaths+recovered are at the right of the line ({closedcasescount_80p:.0f} people)")
 plt.legend()
 
@@ -246,7 +250,9 @@ ax.annotate('François BOYER\nSource : John Hopkins University', xy=(1, 0), xyte
     xycoords='axes fraction', textcoords='offset points',
     bbox=dict(facecolor='white', alpha=0.8),
     horizontalalignment='right', verticalalignment='bottom')
-        
+
+
+
 #plt.savefig('covid19-world-regplot-'+str(1)+'.png')
 st.pyplot()
 
@@ -284,12 +290,31 @@ data = [dict(type = 'choropleth',
         colorbar = {'title':"Death ratio"},
        )]
 
-layout = dict(title = f'{x_label_custom} / {y_label}',
+layout = dict(title = f'{y_label} / {x_label_custom}',
               geo = dict(scope='world', showlakes = True)) #  if scope = 'usa', limit map scope to USA)
 
 choromap = go.Figure(data = data, layout=layout)
     
 st.write(choromap)
+
+if (countries_todisplay == 'US'):
+    Y_data = data_us_confirmed_filtered / data_us_pop_filtered # Does not work
+    
+    data = [dict(type = 'choropleth',
+            colorscale = 'Reds',
+            locations=[US_state_codes_dict[k] for k in Y_data.index.values], # 2 letters state code names
+            z = Y_data, # Data to be color-coded
+            text = Y_data.index.values,
+            locationmode = locationmode_to_use, # set of locations match entries in `locations
+            colorbar = {'title':"Confirmed cases ratio"},
+           )]
+    
+    layout = dict(title = f'Confirmed cases / population',
+                  geo = dict(scope='world', showlakes = True)) #  if scope = 'usa', limit map scope to USA)
+    
+    choromap2 = go.Figure(data = data, layout=layout)        
+
+    st.write(choromap2)
 
 display_data = st.checkbox('Display numerical data', value=True)
 
