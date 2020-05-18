@@ -1,0 +1,31 @@
+Connect to AWS EC2 instance
+
+sudo apt-get update
+sudo apt-get upgrade
+
+sudo apt-get install apache2
+
+sudo a2enmod proxy && sudo a2enmod proxy_http
+sudo a2enmod rewrite
+sudo a2enmod proxy_wstunnel
+
+sudo service apache2 restart
+
+Pour logger l'url:  ajout de %V dans le LogFormat du /etc/apache2/apache2.conf
+
+Configuration de l'httpd /etc/apache2/sites-available/000-default.conf :
+
+CONFIGURATION 2 : SANS CHANGEMENT DE L'URL COTE CLIENT (dans sa barre d'adresse, l'url d'origine sera conservée) :
+<VirtualHost *:80>
+   ServerName covid19.analysons.com
+
+   RewriteEngine On
+   RewriteCond %{HTTP:Upgrade} =websocket
+   RewriteRule /(.*) ws://localhost:8502/$1 [P]
+   RewriteCond %{HTTP:Upgrade} !=websocket
+   RewriteRule /(.*) http://localhost:8502/$1 [P]
+   ProxyPassReverse / http://localhost:8502
+</VirtualHost>
+
+Lancer streamlit avec paramètres :
+streamlit run coviz.py --server.port=8502 --browser.serverPort='8502' --browser.serverAddress='covid19.analysons.com'
