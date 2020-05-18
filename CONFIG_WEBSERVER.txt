@@ -59,6 +59,17 @@ CONFIGURATION 3 : même chose mais avec SSL (ne pas oublier d'ouvrir le port 443
    CustomLog ${APACHE_LOG_DIR}/access.log combined
 </VirtualHost>
 
+
+Le www redirige aussi vers ce site :
+<VirtualHost *:80>
+    ServerName www.analysons.com
+
+    RewriteEngine on
+    #RewriteCond %{SERVER_NAME} =covid19.analysons.com
+    RewriteRule ^ https://covid19.analysons.com%{REQUEST_URI} [END,NE,R=permanent]
+</VirtualHost>
+
+
 Les certificats ont été générés avec Let's Encrypt (gratuit) : voir CertBot.
 Avec cette commande : sudo certbot certonly --apache
 
