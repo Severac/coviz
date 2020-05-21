@@ -297,6 +297,7 @@ choromap = go.Figure(data = data, layout=layout)
     
 st.write(choromap)
 
+'''
 if (countries_todisplay == 'US'):
     Y_data = data_us_confirmed_filtered / data_us_pop_filtered # Does not work
     
@@ -315,6 +316,8 @@ if (countries_todisplay == 'US'):
     choromap2 = go.Figure(data = data, layout=layout)        
 
     st.write(choromap2)
+
+'''
 
 display_data = st.checkbox('Display numerical data', value=True)
 
